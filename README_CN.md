@@ -6,7 +6,7 @@
 
 ## 概述
 
-![org-workbench](./assets/org-workbench.mp4)
+![org-workbench](./assets/figure-1.gif)
 
 org-workbench 提供了一个数字卡片系统，模拟传统的物理卡片工作台，允许您在数字环境中组织和重新排列 org-mode 笔记。它非常适合研究组织、写作项目和论证结构构建。
 

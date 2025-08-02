@@ -227,13 +227,13 @@ When these packages are detected, ID features will be enabled."
   "Manage workbenches (rename, delete)."
   (interactive)
   (let* ((workbench-names (hash-table-keys org-workbench-workbenches))
-         (choices (mapcar (lambda (name)
-                           (format "%s%s (%d cards)"
-                                   (if (string= name org-workbench-current-workbench) "[Current] " "")
-                                   name
-                                   (length (gethash name org-workbench-workbenches))))
-                         workbench-names)
-         (choices (append choices
+         (workbench-choices (mapcar (lambda (name)
+                                     (format "%s%s (%d cards)"
+                                             (if (string= name org-workbench-current-workbench) "[Current] " "")
+                                             name
+                                             (length (gethash name org-workbench-workbenches))))
+                                   workbench-names))
+         (choices (append workbench-choices
                          '("+ Create new workbench..."
                            "🗑️ Delete workbench..."
                            "✏️ Rename workbench...")))
@@ -250,7 +250,7 @@ When these packages are detected, ID features will be enabled."
       (let ((name (car (split-string choice " ("))))
         (setq org-workbench-current-workbench name)
         (org-workbench-show)
-        (message "Switched to workbench: %s" name)))))))
+        (message "Switched to workbench: %s" name))))))
 
 (defun org-workbench-delete ()
   "Delete a workbench."
@@ -307,6 +307,10 @@ When these packages are detected, ID features will be enabled."
   (unless (org-at-heading-p)
     (user-error "Not at a heading"))
   
+  ;; Safety check: ensure we're in an org buffer
+  (unless (derived-mode-p 'org-mode)
+    (user-error "Not in an org-mode buffer"))
+  
   (org-workbench--ensure-default-workbench)
   (let ((current-cards (org-workbench--get-cards))
         (added-cards 0))
@@ -315,64 +319,80 @@ When these packages are detected, ID features will be enabled."
       (org-back-to-heading t)
       (let ((subtree-end (save-excursion (org-end-of-subtree t) (point))))
         
+        ;; Safety check: prevent processing extremely large subtrees
+        (when (> (- subtree-end (point)) 100000) ; 100KB limit
+          (user-error "Subtree too large. Please process smaller sections."))
+        
         ;; Go through the entire subtree, extract all headings as separate cards
-        (let ((keep-going t))
+        (let ((keep-going t)
+              (max-cards 1000)) ; Limit to prevent memory issues
           (while (and keep-going (<= (point) subtree-end))
             (when (org-at-heading-p)
               (let* ((title (org-get-heading t t t t))
                      (number (when (string-match "^\\([0-9]+\\(?:[a-z]*\\)?\\(?:\\.[0-9]+\\(?:[a-z]*\\)?\\)*\\)" title)
                                (match-string 1 title))))
                 ;; Extract content for the current heading only (without any subheadings)
-                  (save-excursion
-                    (org-end-of-meta-data t)
-                    (let ((content-start (point))
-                          (content-end
-                           (save-excursion
-                             ;; Find the next heading of any level or the end of the buffer
-                             (if (outline-next-heading)
-                                 (point)
-                               (point-max)))))
-                      (let ((content (buffer-substring-no-properties content-start content-end)))
-                        ;; Clean content
-                        (setq content (replace-regexp-in-string "^[ \t\n]*" "" content))
-                        (setq content (replace-regexp-in-string "[ \t\n]*$" "" content))
-                        ;; Remove subheadings
-                        (setq content (replace-regexp-in-string "^\\*+.*$" "" content))
-                        (setq content (replace-regexp-in-string "\n\n+" "\n\n" content))
-                        (setq content (replace-regexp-in-string "^[ \t\n]*" "" content))
-                        (setq content (replace-regexp-in-string "[ \t\n]*$" "" content))
-                        ;; Use cleanup function
-                        (setq content (org-workbench--clean-content content))
+                (save-excursion
+                  (org-end-of-meta-data t)
+                  (let ((content-start (point))
+                        (content-end
+                         (save-excursion
+                           ;; Find the next heading of any level or the end of the buffer
+                           (if (outline-next-heading)
+                               (point)
+                             (point-max)))))
+                    (let ((content (buffer-substring-no-properties content-start content-end)))
+                      ;; Clean content
+                      (setq content (replace-regexp-in-string "^[ \t\n]*" "" content))
+                      (setq content (replace-regexp-in-string "[ \t\n]*$" "" content))
+                      ;; Remove subheadings
+                      (setq content (replace-regexp-in-string "^\\*+.*$" "" content))
+                      (setq content (replace-regexp-in-string "\n\n+" "\n\n" content))
+                      (setq content (replace-regexp-in-string "^[ \t\n]*" "" content))
+                      (setq content (replace-regexp-in-string "[ \t\n]*$" "" content))
+                      ;; Use cleanup function
+                      (setq content (org-workbench--clean-content content))
+                      
+                      ;; Truncate content
+                      (when (> (length content) org-workbench-card-content-length)
+                        (setq content (concat (substring content 0 org-workbench-card-content-length) "...")))
+                      
+                      ;; Immediately create card information
+                      (let* ((file (buffer-file-name))
+                             (id (org-workbench--get-or-create-id))
+                             (level (org-current-level))
+                             (card-info (list :id id
+                                             :number number
+                                             :title title
+                                             :content content
+                                             :level level
+                                             :file file)))
                         
-                        ;; Truncate content
-                        (when (> (length content) org-workbench-card-content-length)
-                          (setq content (concat (substring content 0 org-workbench-card-content-length) "...")))
-                        
-                        ;; Immediately create card information
-                        (let* ((file (buffer-file-name))
-                               (id (or (org-entry-get (point) "ID")
-                                       (progn
-                                         (org-id-get-create)
-                                         (org-entry-get (point) "ID"))))
-                               (level (org-current-level))
-                               (card-info (list :id id
-                                               :number number
-                                               :title title
-                                               :content content
-                                               :level level
-                                               :file file)))
-                          
-                          ;; Check if already exists (use ID)
-                          (unless (cl-find-if (lambda (card) (equal (plist-get card :id) id))
-                                           current-cards)
+                        ;; Check if already exists (use ID if available, otherwise use number+file)
+                        (unless (catch 'found
+                                  (dolist (card current-cards)
+                                    (when (if (and id (plist-get card :id))
+                                              (equal (plist-get card :id) id)
+                                            (and (string= (plist-get card :number) number)
+                                                 (string= (plist-get card :file) file)))
+                                      (throw 'found t)))
+                                  nil)
+                          ;; Safety check: limit number of cards to prevent memory issues
+                          (when (< added-cards max-cards)
                             (setq current-cards (cons card-info current-cards))
-                            (setq added-cards (1+ added-cards))))))))))
+                            (setq added-cards (1+ added-cards)))
+                          (when (>= added-cards max-cards)
+                            (setq keep-going nil)
+                            (message "Reached maximum card limit (%d). Stopping." max-cards)))))))))
             
-            ;; Move to the next heading, but stop if we go past the subtree end.
-            (if (and (outline-next-heading) (<= (point) subtree-end))
-                (setq keep-going t) ; continue
-              (setq keep-going nil) ; stop
-              )))
+            ;; Move to the next heading, but stop if we go past the subtree end
+            (let ((next-point (save-excursion 
+                               (if (outline-next-heading)
+                                   (point)
+                                 nil))))
+              (if (and next-point (<= next-point subtree-end))
+                  (goto-char next-point)
+                (setq keep-going nil)))))
     
     (when (> added-cards 0)
       (org-workbench--set-cards (nreverse current-cards))
@@ -388,6 +408,10 @@ When these packages are detected, ID features will be enabled."
   (interactive)
   (unless (org-at-heading-p)
     (user-error "Not at a heading"))
+  
+  ;; Safety check: ensure we're in an org buffer
+  (unless (derived-mode-p 'org-mode)
+    (user-error "Not in an org-mode buffer"))
   
   (org-workbench--ensure-default-workbench)
   (save-excursion
@@ -431,12 +455,14 @@ When these packages are detected, ID features will be enabled."
              (current-cards (org-workbench--get-cards)))
         
         ;; Check if already exists (use ID if available, otherwise use number+file)
-        (unless (cl-find-if (lambda (card) 
-                           (if (and id (plist-get card :id))
-                               (equal (plist-get card :id) id)
-                             (and (string= (plist-get card :number) number)
-                                  (string= (plist-get card :file) (plist-get card-info :file)))))
-                         current-cards)
+        (unless (catch 'found
+                  (dolist (card current-cards)
+                    (when (if (and id (plist-get card :id))
+                              (equal (plist-get card :id) id)
+                            (and (string= (plist-get card :number) number)
+                                 (string= (plist-get card :file) file)))
+                      (throw 'found t)))
+                  nil)
           (org-workbench--set-cards (cons card-info current-cards))
           (org-workbench--save)
           (message "Added heading: %s to workbench: %s" title org-workbench-current-workbench)
@@ -574,17 +600,21 @@ When these packages are detected, ID features will be enabled."
                 (current-cards (org-workbench--get-cards)))
             ;; Remove from data structure (use ID if available, otherwise use number+file)
             (setq current-cards 
-                  (cl-remove-if (lambda (c) 
-                                 (if (and id (plist-get c :id))
-                                     (equal (plist-get c :id) id)
-                                   (and (string= (plist-get c :number) number)
-                                        (string= (plist-get c :file) file))))
-                               current-cards))
+                  (delq nil (mapcar (lambda (c) 
+                                     (unless (if (and id (plist-get c :id))
+                                                 (equal (plist-get c :id) id)
+                                               (and (string= (plist-get c :number) number)
+                                                    (string= (plist-get c :file) file)))
+                                       c))
+                         current-cards)))
             (org-workbench--set-cards current-cards)
             (org-workbench--save)
             
             ;; Remove from display
             (org-cut-subtree)
+            
+            ;; Update the workbench display to refresh the card counter
+            (org-workbench-show)
             (message "Removed card: %s" (plist-get card :title))))
       (user-error "Not on a workbench card"))))
 
@@ -642,7 +672,13 @@ This function requires ID system to be enabled and the card to have an ID."
           (message "Syncing card %s..." id)
           ;; Get the latest data from the source node
           (let* ((current-cards (org-workbench--get-cards))
-                 (card-index (cl-position card current-cards :test 'equal))
+                 (card-index (catch 'found
+                               (let ((index 0))
+                                 (dolist (c current-cards)
+                                   (when (equal c card)
+                                     (throw 'found index))
+                                   (setq index (1+ index)))
+                                 nil)))
                  (updated-card (when card-index
                                 (save-excursion
                                   (org-id-goto id)
@@ -681,7 +717,9 @@ This function requires ID system to be enabled."
                                   (org-id-goto id)
                                   (org-workbench--extract-card-info nil)))))
             (when updated-card
-              (setq current-cards (cl-substitute updated-card card current-cards :test 'equal))
+              (setq current-cards (mapcar (lambda (c)
+                                           (if (equal c card) updated-card c))
+                                         current-cards))
               (setq synced-count (1+ synced-count)))))
         (org-workbench--set-cards current-cards)
         (org-workbench--save)
@@ -758,9 +796,22 @@ This function requires ID system to be enabled."
   (when org-workbench-org-mode
     (add-hook 'org-after-refile-insert-hook 'org-workbench-save-order nil t)))
 
-;; Backward compatibility
-(defalias 'org-luhmann-mode 'org-workbench-mode)
-(defalias 'org-luhmann-workbench-org-mode 'org-workbench-org-mode)
+;;------------------------------------------------------------------------------
+;; Setup and Cleanup
+;;------------------------------------------------------------------------------
+
+(defun org-workbench-setup ()
+  "Setup org-workbench."
+  (org-workbench--load)
+  (org-workbench--ensure-default-workbench))
+
+;; Ensure setup is run when org-mode is loaded
+(eval-after-load 'org
+  '(org-workbench-setup))
+
+;; Also ensure setup is run when org-workbench is loaded
+(eval-after-load 'org-workbench
+  '(org-workbench-setup))
 
 (provide 'org-workbench)
 

@@ -8,7 +8,7 @@ Compatible with org-mode, and pakages that support the ID system, such as org-su
 
 ## Overview
 
-![org-workbench](./assets/org-workbench.mp4)
+![org-workbench](./assets/figure-1.gif)
 
 org-workbench provides a digital card system that simulates a traditional physical card workbench, allowing you to organize and rearrange your org-mode notes in a digital environment. It's perfect for research organization, writing projects, and argument structure building.
 
