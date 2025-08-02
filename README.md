@@ -12,6 +12,23 @@ Compatible with org-mode, and pakages that support the ID system, such as org-su
 
 org-workbench provides a digital card system that simulates a traditional physical card workbench, allowing you to organize and rearrange your org-mode notes in a digital environment. It's perfect for research organization, writing projects, and argument structure building.
 
+## Why use org-workbench?
+
+Imagine you're writing a paper or working on a research project. You have many notes scattered across different org files, and now you need to reorganize this content into a logically clear structure.
+
+**Problems with traditional approaches:**
+- Reorganizing directly in the original files would destroy the existing structure
+- Frequently switching between multiple files can cause loss of context
+- Need to consider complex hierarchical relationships, making operations cumbersome
+
+**org-workbench's solution:**
+- Create a "workbench" and extract all related content as cards
+- Experiment with different arrangements in a safe environment without affecting the original files
+- All cards are at the same level, making moving and reorganizing very simple
+- Can quickly jump back to the original file for editing while maintaining synchronization
+
+Simply put, org-workbench gives you a digital "card workbench" that lets you easily reorganize your notes like you would with physical cards.
+
 ## Features
 
 - **Digital Card System**: Create cards from any org-mode heading
