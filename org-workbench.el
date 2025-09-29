@@ -638,6 +638,7 @@ When enabled, org-workbench will rely on org-mode's native ID system."
         (let ((buffer (get-buffer-create "*Org Workbench Export*")))
           (with-current-buffer buffer
             (erase-buffer)
+            (org-mode)
             (insert (format "#+TITLE: Workbench Export: %s\n\n" org-workbench-current-workbench))
             (insert (format "- Exported from workbench '%s'\n- Total cards in workbench: %d\n- Links exported: %d\n" org-workbench-current-workbench total-cards exported-count))
             (when (> skipped-count 0)
