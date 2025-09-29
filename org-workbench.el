@@ -58,24 +58,9 @@
 
 ;; ID System Configuration
 (defcustom org-workbench-enable-id-system t
-  "Whether to enable ID system for enhanced features.
-When enabled, org-workbench will use IDs for card identification
-when supported packages (org-supertag, org-brain, org-roam) are detected.
-This enables sync and goto-source features."
+  "Enable ID-based features like sync and goto-source.
+When enabled, org-workbench will rely on org-mode's native ID system."
   :type 'boolean
-  :group 'org-workbench)
-
-(defcustom org-workbench-auto-detect-id-packages t
-  "Whether to automatically detect ID-supporting packages.
-When enabled, org-workbench will automatically detect if org-supertag,
-org-brain, or org-roam are loaded and enable ID features accordingly."
-  :type 'boolean
-  :group 'org-workbench)
-
-(defcustom org-workbench-id-packages '(org-supertag org-brain org-roam)
-  "List of packages that support ID system.
-When these packages are detected, ID features will be enabled."
-  :type '(repeat symbol)
   :group 'org-workbench)
 
 ;; Internal variables
@@ -98,25 +83,14 @@ When these packages are detected, ID features will be enabled."
     map)
   "Keymap for org-workbench-mode.")
 
-;; Backward compatibility
-(defvaralias 'org-luhmann-mode-map 'org-workbench-mode-map)
-
 ;;------------------------------------------------------------------------------
 ;; Core Functions
 ;;------------------------------------------------------------------------------
 
-;; ID System Detection and Management
-(defun org-workbench--detect-id-packages ()
-  "Detect if any ID-supporting packages are loaded."
-  (when org-workbench-auto-detect-id-packages
-    (cl-some (lambda (package)
-               (featurep package))
-             org-workbench-id-packages)))
-
 (defun org-workbench--should-use-id-p ()
   "Determine if ID system should be used."
-  (and org-workbench-enable-id-system
-       (org-workbench--detect-id-packages)))
+  ;; If the user enables it, we trust the user.
+  org-workbench-enable-id-system)
 
 (defun org-workbench--get-or-create-id ()
   "Get existing ID or create a new one if ID system is enabled."
@@ -567,9 +541,6 @@ When these packages are detected, ID features will be enabled."
   (org-workbench--load)
   (org-workbench--ensure-default-workbench))
 
-;; Backward compatibility
-(defalias 'org-luhmann-workbench-setup 'org-workbench-setup)
-
 ;;------------------------------------------------------------------------------
 ;; Mode Definition
 ;;------------------------------------------------------------------------------
@@ -642,6 +613,81 @@ When these packages are detected, ID features will be enabled."
     (org-workbench--save)
     (org-workbench-show)
     (message "Workbench '%s' cleared" org-workbench-current-workbench)))
+
+(defun org-workbench-export-links ()
+  "Export all cards in the current workbench to a new buffer as a list of org-links."
+  (interactive)
+  (unless (org-workbench--should-use-id-p)
+    (user-error "Cannot export links: ID system is not enabled"))
+  (let* ((cards (org-workbench--get-cards))
+         (total-cards (length cards))
+         (exported-count 0)
+         (skipped-count 0)
+         (links '()))
+    (if (null cards)
+        (message "Workbench is empty. Nothing to export.")
+      (progn
+        (dolist (card cards)
+          (let ((id (plist-get card :id))
+                (title (plist-get card :title)))
+            (if (and id (not (string-empty-p id)))
+                (progn
+                  (push (format "[[id:%s][%s]]" id title) links)
+                  (setq exported-count (1+ exported-count)))
+              (setq skipped-count (1+ skipped-count)))))
+        (let ((buffer (get-buffer-create "*Org Workbench Export*")))
+          (with-current-buffer buffer
+            (erase-buffer)
+            (insert (format "#+TITLE: Workbench Export: %s\n\n" org-workbench-current-workbench))
+            (insert (format "- Exported from workbench '%s'\n- Total cards in workbench: %d\n- Links exported: %d\n" org-workbench-current-workbench total-cards exported-count))
+            (when (> skipped-count 0)
+              (insert (format "- Cards skipped (no ID): %d\n" skipped-count)))
+            (insert "\n* Links\n")
+            (insert (mapconcat #'identity (nreverse links) "\n")))
+          (display-buffer buffer))
+        (message "Exported %d links. %d cards were skipped due to missing IDs." exported-count skipped-count)))))
+
+(defun org-workbench-toggle-keybindings ()
+  "Show or hide a list of keybindings at the bottom of the workbench."
+  (interactive)
+  (with-current-buffer (get-buffer-create org-workbench-buffer-name)
+    (let ((was-read-only buffer-read-only))
+      (unwind-protect
+          (progn
+            (setq buffer-read-only nil)
+            (goto-char (point-min))
+            ;; Check if keybindings are already visible by looking for the header
+            (if (re-search-forward "\n\* Keybindings\n" nil t)
+                ;; If visible, hide them
+                (progn
+                  (goto-char (match-beginning 0))
+                  (let ((start (point)))
+                    (goto-char (point-max))
+                    (delete-region start (point)))
+                  (message "Keybindings hidden."))
+              ;; If not visible, show them
+              (progn
+                (goto-char (point-max))
+                ;; Ensure there are two newlines before the help section
+                (unless (looking-back "\n\n" (- (point) 2))
+                  (insert "\n"))
+                (insert "* Keybindings\n")
+                (insert "| Key             | Description          |\n")
+                (insert "|-----------------+----------------------|\n")
+                (insert "| ?               | Toggle Keybindings   |\n")
+                (insert "| g               | Refresh Display      |\n")
+                (insert "| RET             | Goto Source          |\n")
+                (insert "| n / p           | Next/Previous Card   |\n")
+                (insert "| M-p / M-<up>    | Move Card Up         |\n")
+                (insert "| M-n / M-<down>  | Move Card Down       |\n")
+                (insert "| C-c C-k         | Remove Card          |\n")
+                (insert "| C-c C-s         | Save Order           |\n")
+                (insert "| C-c C-c         | Clear Workbench      |\n")
+                (insert "| C-c C-e         | Export Links         |\n")
+                (insert "| C-c s c         | Sync Card            |\n")
+                (insert "| C-c s a         | Sync All Cards       |\n")
+                (message "Keybindings shown. Press '?' again to hide."))))
+        (setq buffer-read-only was-read-only)))))
 
 ;;------------------------------------------------------------------------------
 ;; ID-based Enhanced Functions
@@ -739,7 +785,7 @@ This function requires ID system to be enabled."
           ;; Automatically save the new order
           (org-workbench-save-order))))))
 
-(defun org-workbench-move-down ()
+(defun org-workbench-move-down ()       
   "Move current card down and automatically save order."
   (interactive)
   (let ((buffer (get-buffer org-workbench-buffer-name)))
@@ -770,7 +816,9 @@ This function requires ID system to be enabled."
     (define-key map (kbd "C-c C-k") 'org-workbench-remove-card)
     (define-key map (kbd "C-c C-s") 'org-workbench-save-order)
     (define-key map (kbd "C-c C-c") 'org-workbench-clear)
+    (define-key map (kbd "C-c C-e") 'org-workbench-export-links)
     (define-key map (kbd "g") 'org-workbench-show)
+    (define-key map (kbd "?") 'org-workbench-toggle-keybindings)
     
     ;; ID-based enhanced functions (only available when ID system is enabled)
     (define-key map (kbd "RET") 'org-workbench-goto-source)

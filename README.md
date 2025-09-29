@@ -38,6 +38,7 @@ Simply put, org-workbench gives you a digital "card workbench" that lets you eas
 - **Card Operations**: Add, remove, and organize cards with intuitive commands
 - **Smart ID System**: Automatically enables enhanced features when org-supertag, org-brain, or org-roam are detected
 - **Enhanced Features**: Sync cards with source files and jump to original locations (when ID system is enabled)
+- **Export to Org-links**: Export all cards in a workbench as a list of `org-link`s to a new buffer.
 - **Backward Compatibility**: Works seamlessly with existing org-luhmann setups
 
 ## Display Format
@@ -128,6 +129,7 @@ Note: Stars are completely hidden, but all org-mode features are preserved. All 
 - **Jump to Source**: `RET` to jump to the original location of the card
 - **Sync Single Card**: `C-c s c` to sync current card with its source
 - **Sync All Cards**: `C-c s a` to sync all cards with their sources
+- **Export Links**: `C-c C-e` (`M-x org-workbench-export-links`) to export all card links to a new buffer.
 
 ## Configuration
 
@@ -136,20 +138,17 @@ Note: Stars are completely hidden, but all org-mode features are preserved. All 
 (setq org-workbench-card-content-length 500)
 ```
 
-### ID System Configuration
-
-You can also manually enable the ID system compatible with note-taking packages:
+### ID System
 
 ```elisp
 ;; Enable/disable ID system
 (setq org-workbench-enable-id-system t)
-
-;; Enable/disable automatic package detection
-(setq org-workbench-auto-detect-id-packages t)
-
-;; Customize which packages enable ID system
-(setq org-workbench-id-packages '(org-supertag org-brain org-roam))
 ```
+org-workbench can operate in two modes:
+- **Without IDs**: You get a basic workbench for visually rearranging cards.
+- **With IDs (Recommended)**: By enabling `org-workbench-enable-id-system`, you unlock all enhanced features like jumping to source, syncing content, and exporting links. For this to work, your org headings need to have `ID` properties, which can be easily added via `M-x org-id-get-create`.
+
+For the best experience, it is highly recommended to use an ID-based workflow.
 
 ## Use Cases
 
@@ -189,11 +188,7 @@ Each card contains:
 - `:level`: Level of the original title
 - `:file`: Original file path
 
-### ID System Behavior
-- **Automatic Detection**: The system automatically detects if org-supertag, org-brain, or org-roam are loaded
-- **Conditional Features**: Enhanced features (sync, goto-source) are only available when ID system is enabled
-- **Backward Compatibility**: Existing cards without IDs continue to work normally
-- **Visual Indicators**: The workbench display shows "[ID System Enabled]" when the feature is active
+
 
 ## License
 

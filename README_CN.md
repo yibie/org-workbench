@@ -36,6 +36,7 @@ org-workbench 提供了一个数字卡片系统，模拟传统的物理卡片工
 - **卡片操作**：使用直观命令添加、删除和组织卡片
 - **智能 ID 系统**：当检测到 org-supertag、org-brain 或 org-roam 时自动启用增强功能
 - **增强功能**：与源文件同步卡片并跳转到原始位置（当与使用 ID 系统的笔记包配合使用时，比如 org-supertag、org-brain、org-roam 等）
+- **导出为 Org 链接**：将工作台中的所有卡片作为 `org-link` 列表导出到新的 buffer。
 - **向后兼容**：与现有 org-luhmann 设置无缝协作
 
 ## 显示格式
@@ -126,6 +127,7 @@ org-workbench 提供了一个数字卡片系统，模拟传统的物理卡片工
 - **跳转到源文件**：`RET` 跳转到卡片的原始位置
 - **同步单个卡片**：`C-c s c` 同步当前卡片与其源文件
 - **同步所有卡片**：`C-c s a` 同步所有卡片与其源文件
+- **导出链接**：`C-c C-e` (`M-x org-workbench-export-links`) 将所有卡片链接导出到一个新的 buffer。
 
 ## 配置
 
@@ -134,20 +136,17 @@ org-workbench 提供了一个数字卡片系统，模拟传统的物理卡片工
 (setq org-workbench-card-content-length 500)
 ```
 
-### ID 系统配置
-
-您也可以手动启用与笔记包兼容的 ID 系统：
+### ID 系统
 
 ```elisp
 ;; 启用/禁用 ID 系统
 (setq org-workbench-enable-id-system t)
-
-;; 启用/禁用自动包检测
-(setq org-workbench-auto-detect-id-packages t)
-
-;; 自定义哪些包启用 ID 系统
-(setq org-workbench-id-packages '(org-supertag org-brain org-roam))
 ```
+org-workbench 可在两种模式下运行：
+- **无 ID 模式**: 提供一个基础的工作台，用于直观地重新排列卡片。
+- **ID 模式 (推荐)**: 通过启用 `org-workbench-enable-id-system`，您可以解锁所有增强功能，如跳转到源文件、同步内容和导出链接。要使其工作，您的 org 标题需要有 `ID` 属性，这可以通过 `M-x org-id-get-create` 轻松添加。
+
+为了获得最佳体验，强烈建议使用基于 ID 的工作流。
 
 ## 使用场景
 
@@ -187,11 +186,7 @@ org-workbench 提供了一个数字卡片系统，模拟传统的物理卡片工
 - `:level`：原始标题的级别
 - `:file`：原始文件路径
 
-### ID 系统行为
-- **自动检测**：系统自动检测是否加载了 org-supertag、org-brain 或 org-roam
-- **条件功能**：增强功能（同步、跳转到源文件）仅在 ID 系统启用时可用
-- **向后兼容**：没有 ID 的现有卡片继续正常工作
-- **视觉指示器**：当功能激活时，工作台显示显示"[ID 系统已启用]"
+
 
 ## 许可证
 
